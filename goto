@@ -1,0 +1,45 @@
+#!/bin/bash
+
+#宣告變數
+declare -i i=0
+declare -i j=0
+value=$1
+
+#用 aws cli 取得 Public IP 和 Name Tag，並存入暫存檔
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].[PublicIpAddress,Tags[?Key==`Name`].Value]' --output text > tmp.txt
+
+#讀取暫存檔，存入 array
+filename='tmp.txt'
+exec < $filename
+
+while read line
+do
+     array[$i]=$line
+     i=$i+1
+done
+
+
+#用輸入的參數值在 array 中尋找，找到的話就回傳
+for i in "${!array[@]}"; do
+   if [[ "${array[$i]}" = "${value}" ]]; then
+       #如果 Public IP 是 None，代表該 Instance 是關機的或是沒有 Public IP
+   	   if [ ${array[$i-1]} = "None" ]; then
+           echo "The instance was shutdown or didn't assign public ip"
+       else
+       	   echo "ssh ec2-user@${array[$i-1]}"
+           ssh ec2-user@${array[$i-1]}
+       fi
+   else
+       #找不到就 j+1
+       j=$j+1
+   fi
+done
+
+#如果上面的判斷中都沒有符合的話，j會等於array的總個數
+if [ $j =  ${#array[@]} ]; then
+	echo "Host not found"
+fi
+
+#刪除暫存檔
+rm -rf tmp.txt
+
